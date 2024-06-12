@@ -18,31 +18,28 @@ router.get('/', async (req: Request, res: Response) => {
     const query = {
         query: `
         query {
-            posts(first: 10, order: RANKING) {
-    edges {
-      node {
-        id
-        name
-        tagline
-        votesCount
-        featuredAt
-        createdAt
+            posts(first: 10, order: RANKING,topic:"developer-tools") {
+                edges {
+                    node {
+                         id
+                             name
+                             tagline
+                                votesCount
+                             featuredAt
+                             createdAt
        
-        reviewsCount
-        reviewsRating
-        commentsCount
-        makers {
-          id
-          name
-          username
-          twitterUsername
-          websiteUrl
-          profileImage
-        }
-        media {
-          type
-          url
-        }
+                             reviewsCount
+                             reviewsRating
+                             commentsCount
+                            url
+                            website
+                           productLinks{
+                           type
+                           url}
+                             media {
+                               type
+                               url
+                             }
         
       }
     }
