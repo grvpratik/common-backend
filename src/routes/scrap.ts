@@ -1,87 +1,46 @@
 import axios from 'axios'
 import express, { type Request, type Response } from 'express'
-
+import { JSDOM } from 'jsdom'
 const router = express.Router()
 
 router.get('/', async (req: Request, res: Response) => {
-    const API_URL = 'https://api.producthunt.com/v2/api/graphql'
-    const api_token_ph = process.env.PRODUCT_HUNT_API_TOKEN
+    async function extractImageUrls(url) {
+        try {
+            // Fetch the webpage content
+            const response = await axios.get(url)
+            const htmlContent = response.data
 
-    if (!api_token_ph) {
-        console.error('API token is not defined')
-        return res.status(500).send({
-            error: true,
-            message: 'API token is not defined',
-        })
-    }
+            // Load the content into jsdom
+            const dom = new JSDOM(htmlContent)
+            const document = dom.window.document
 
-    const query = {
-        query: `
-        query {
-            posts(first: 10, order: RANKING,topic:"developer-tools") {
-                edges {
-                    node {
-                         id
-                             name
-                             tagline
-                                votesCount
-                             featuredAt
-                             createdAt
-       
-                             reviewsCount
-                             reviewsRating
-                             commentsCount
-                            url
-                            website
-                           productLinks{
-                           type
-                           url}
-                             media {
-                               type
-                               url
-                             }
-        
-      }
-    }
-  }
+            // Extract all image URLs
+            const imgElements = document.querySelectorAll('img')
+            const imgUrls = Array.from(imgElements).map((img: any) => img?.src)
+
+            return imgUrls
+        } catch (error) {
+            console.error('Error fetching the webpage:', error)
+            return []
         }
-        `,
     }
 
-    try {
-        const response = await axios.post(API_URL, query, {
-            headers: {
-                Accept: 'application/json',
-                'Content-Type': 'application/json',
-                Authorization: 'Bearer ' + api_token_ph,
-            },
-        })
+    const url = 'https://www.producthunt.com/'
+    const imageArray = await extractImageUrls(url)
 
-        console.log(response.data) // Log the entire response for debugging
+    // let image;
+    // if(imageArray.length > 0){
+    //     imageArray.map((img) => {
 
-        const data = response.data
-        if (data && data.data) {
-            return res.status(200).send({
-                success: true,
-                data: data.data, // Send back the fetched data
-            })
-        } else {
-            console.error('Unexpected response structure', data)
-            return res.status(500).send({
-                error: true,
-                message: 'Unexpected response structure',
-            })
-        }
-    } catch (error) {
-        console.error(
-            'Error fetching products:',
-            error.response ? error.response.data : error.message,
-        )
-        return res.status(500).send({
-            error: true,
-            message: 'Error fetching products',
-        })
-    }
+    //     })
+    // }
+    console.log(imageArray)
+
+    const obj = Object.fromEntries(imageArray.map((value, index) => [index, value]))
+    return res.status(200).send({
+        error: false,
+        image: obj,
+    })
 })
 
 export default router
