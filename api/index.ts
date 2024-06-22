@@ -11,9 +11,7 @@ import helmet from 'helmet'
 
 import 'dotenv/config'
 
-import Routes from "..//src/routes"
-
-
+import Routes from '../src/routes'
 
 class AppError extends Error {
     constructor(
