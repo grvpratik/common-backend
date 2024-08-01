@@ -24,7 +24,7 @@ router.get('/', async (req: Request, res: Response) => {
                          id
                              name
                              tagline
-                                votesCount
+                             votesCount
                              featuredAt
                              createdAt
        
@@ -34,8 +34,9 @@ router.get('/', async (req: Request, res: Response) => {
                             url
                             website
                            productLinks{
-                           type
-                           url}
+                                    type
+                                     url
+                                     }
                              media {
                                type
                                url

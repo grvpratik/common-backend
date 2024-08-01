@@ -1,8 +1,12 @@
 import axios from 'axios'
 import express, { type Request, type Response } from 'express'
 import { JSDOM } from 'jsdom';
-
+import { Connection, PublicKey } from '@solana/web3.js'
 const router = express.Router()
+
+const connection = new Connection('https://api.mainnet-beta.solana.com'); // Connect to the Solana mainnet
+
+
  const data = [
      {
          id: '642dee38e0315a413c963a3c',
@@ -3340,4 +3344,119 @@ router.get('/data', async (req: Request, res: Response) => {
        convertedDataArray
     })
 })
+
+router.get('/sol', async (req: Request, res: Response) => {
+     const walletAddress = req.query.address as string
+     console.log(walletAddress)
+
+     if (!walletAddress) {
+         return res
+             .status(400)
+             .json({ error: 'Address query parameter is required' })
+     }
+
+     try {
+         // Fetch the HTML content of the Solscan page for the given wallet address
+         const url = `https://solscan.io/account/${walletAddress}`
+         const { data } = await axios.get(url)
+
+         // Parse the HTML content with jsdom
+         const dom = new JSDOM(data)
+         const document = dom.window.document
+         console.log(
+             document.querySelector(
+                 '.inline-block text-center truncate text-link text-[14px]',
+             )?.href,
+         )
+
+         // Example: Extract transactions from the page
+         // You need to inspect the Solscan page and find the correct selectors
+         const transactions = []
+         const transactionRows = document.querySelectorAll(
+             '.transaction-row-class',
+         ) // Update this selector
+
+         transactionRows.forEach((row) => {
+             const transaction = {
+                 date: row.querySelector('.date-class')?.textContent.trim(), // Update these selectors
+                 amount: row.querySelector('.amount-class')?.textContent.trim(),
+                 type: row.querySelector('.type-class')?.textContent.trim(),
+             }
+             transactions.push(transaction)
+         })
+
+         // Respond with the scraped transactions
+         res.json({ transactions })
+     } catch (error) {
+         console.error('Error scraping the page:', error)
+         res.status(500).json({ error: 'Failed to scrape the page' })
+     }
+})
+
+const getTransactionWithRetry = async (
+    signature: string,
+    retries: number = 5,
+    delay: number = 500,
+): Promise<any> => {
+    try {
+        return await connection.getTransaction(signature, {
+            commitment: 'confirmed',
+        })
+    } catch (error) {
+        if (retries === 0) {
+            throw error
+        }
+        console.log(
+            `Error fetching transaction. Retrying after ${delay}ms delay...`,
+        )
+        await new Promise((res) => setTimeout(res, delay))
+        return getTransactionWithRetry(signature, retries - 1, delay * 2) // Exponential backoff
+    }
+}
+
+
+router.get('/wallet', async (req: Request, res: Response) => {
+    const walletAddress = req.query.address as string
+    const transactionSignature = req.query.signature as string
+
+    if (!walletAddress) {
+        return res
+            .status(400)
+            .json({ error: 'Address query parameter is required' })
+    }
+
+    if (!transactionSignature) {
+        return res
+            .status(400)
+            .json({
+                error: 'Transaction signature query parameter is required',
+            })
+    }
+
+    try {
+        const transaction = await getTransactionWithRetry(transactionSignature)
+
+        if (!transaction) {
+            return res.status(404).json({ error: 'Transaction not found' })
+        }
+
+        res.json({
+            signature: transactionSignature,
+            transaction,
+        })
+    } catch (error) {
+        console.error('Error fetching transaction:', error)
+        res.status(500).json({ error: 'Failed to fetch transaction' })
+    }
+})
+
+
+
+
+
+
+
+
+
+
 export default router
