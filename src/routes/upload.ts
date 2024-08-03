@@ -2,6 +2,7 @@ import express, { NextFunction, Request, Response } from 'express'
 import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { S3Client } from '@aws-sdk/client-s3'
+import axios from 'axios'
 
 const router = express.Router()
 
@@ -34,13 +35,19 @@ const objectURL = (key: string) => {
 
 router.post('/', async (req: Request, res: Response, next: NextFunction) => {
     console.log(req.body)
-    const { fileName, contentType, fileSize } = req.body
+    const { fileName, contentType, fileSize, url } = req.body
     console.log({ fileName, contentType, fileSize })
     // Validate the input parameters
     if (!fileName) {
         return res.status(400).send({
             success: false,
             message: 'Filename is required',
+        })
+    }
+    if (!url) {
+        return res.status(400).send({
+            success: false,
+            message: 'Url is required',
         })
     }
     if (!contentType) {
@@ -55,19 +62,31 @@ router.post('/', async (req: Request, res: Response, next: NextFunction) => {
             message: 'Exceeded file size limit',
         })
     }
-
+    const response = await axios.get(url, {
+        responseType: 'arraybuffer',
+    })
+    if (response.status !== 200)
+        return res.status(500).send({
+            success: false,
+        })
     // Generate the pre-signed URL for uploading the file
     const uploadUrl = await putObjectURL(fileName, contentType)
 
     // Generate the public URL for accessing the uploaded file
     const publicUrl = objectURL(fileName)
-
+    const upload = await axios.put(uploadUrl, response.data)
+    if (upload.status === 200)
+        return res.status(201).send({
+            success: true,
+            // uploadUrl,
+            publicUrl,
+        })
+    else {
+        return res.status(500).send({
+            success: false,
+        })
+    }
     // Respond with the URLs
-    return res.status(201).send({
-        success: true,
-        uploadUrl,
-        publicUrl,
-    })
 })
 
-export default router;
+export default router
