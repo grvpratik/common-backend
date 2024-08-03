@@ -1,10 +1,9 @@
 import axios from 'axios'
 import express, { type Request, type Response } from 'express'
 import { JSDOM } from 'jsdom';
-import { Connection, PublicKey } from '@solana/web3.js'
+
 const router = express.Router()
 
-const connection = new Connection('https://api.mainnet-beta.solana.com'); // Connect to the Solana mainnet
 
 
  const data = [
@@ -3392,65 +3391,6 @@ router.get('/sol', async (req: Request, res: Response) => {
          res.status(500).json({ error: 'Failed to scrape the page' })
      }
 })
-
-const getTransactionWithRetry = async (
-    signature: string,
-    retries: number = 5,
-    delay: number = 500,
-): Promise<any> => {
-    try {
-        return await connection.getTransaction(signature, {
-            commitment: 'confirmed',
-        })
-    } catch (error) {
-        if (retries === 0) {
-            throw error
-        }
-        console.log(
-            `Error fetching transaction. Retrying after ${delay}ms delay...`,
-        )
-        await new Promise((res) => setTimeout(res, delay))
-        return getTransactionWithRetry(signature, retries - 1, delay * 2) // Exponential backoff
-    }
-}
-
-
-router.get('/wallet', async (req: Request, res: Response) => {
-    const walletAddress = req.query.address as string
-    const transactionSignature = req.query.signature as string
-
-    if (!walletAddress) {
-        return res
-            .status(400)
-            .json({ error: 'Address query parameter is required' })
-    }
-
-    if (!transactionSignature) {
-        return res
-            .status(400)
-            .json({
-                error: 'Transaction signature query parameter is required',
-            })
-    }
-
-    try {
-        const transaction = await getTransactionWithRetry(transactionSignature)
-
-        if (!transaction) {
-            return res.status(404).json({ error: 'Transaction not found' })
-        }
-
-        res.json({
-            signature: transactionSignature,
-            transaction,
-        })
-    } catch (error) {
-        console.error('Error fetching transaction:', error)
-        res.status(500).json({ error: 'Failed to fetch transaction' })
-    }
-})
-
-
 
 
 
