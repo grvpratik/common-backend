@@ -1,10 +1,11 @@
 import express, { Request, Response } from 'express'
 import axios from 'axios'
+import processTokenSwaps from './fn/format'
 
 const router = express.Router()
 
 // Define the endpoint for your API
-const SOLSCAN_API_URL = 'https://api-v2.solscan.io/v2/account/transfer'
+const SOLSCAN_API_URL = 'https://api-v2.solscan.io/v2/account/activity/dextrading'
 
 // Your GET route handler
 router.get('/', async (req: Request, res: Response) => {
@@ -49,7 +50,10 @@ router.get('/', async (req: Request, res: Response) => {
         })
 
         // Send the data from Solscan API as response
-        res.json(response.data)
+        const result= processTokenSwaps(response.data.data);
+        res.json(result)
+
+
     } catch (error) {
         console.error('Error fetching data from Solscan API:', error)
         res.status(500).send('Internal Server Error')

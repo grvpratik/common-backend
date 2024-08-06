@@ -1,0 +1,109 @@
+import express, { NextFunction, Request, Response } from 'express';
+import { GetObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { S3Client } from '@aws-sdk/client-s3';
+import axios from 'axios';
+
+const router = express.Router();
+
+const s3Client = new S3Client({
+    region: process.env.AWS_REGION,
+    credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID as string,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY as string,
+    },
+});
+
+const FILE_SIZE_LIMIT: number = 5 * 1024 * 1024; // 5 MB
+
+/**
+ * Generate a presigned URL for uploading an object to S3.
+ * @param filename - The name of the file to upload.
+ * @param contentType - The MIME type of the file.
+ * @returns The presigned URL for the upload.
+ */
+const generatePresignedUrl = async (filename: string, contentType: string): Promise<string> => {
+    try {
+        const command = new PutObjectCommand({
+            Bucket: process.env.AWS_BUCKET as string,
+            Key: filename,
+            ContentType: contentType,
+        });
+        const url = await getSignedUrl(s3Client, command);
+        return url;
+    } catch (error) {
+        console.error('Error generating presigned URL:', error);
+        throw new Error('Could not generate presigned URL');
+    }
+};
+
+/**
+ * Generate a public URL for accessing an uploaded object from S3.
+ * @param key - The key of the object.
+ * @returns The public URL of the object.
+ */
+const getPublicUrl = (key: string): string => {
+    return `https://${process.env.AWS_BUCKET}.s3.${process.env.AWS_REGION}.amazonaws.com/${key}`;
+};
+
+router.post('/', async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { fileName, contentType, fileSize, url } = req.body;
+
+        // Validate input parameters
+        if (!fileName || !contentType || !url) {
+            return res.status(400).json({
+                success: false,
+                message: 'Filename, content type, and URL are required',
+            });
+        }
+        if (fileSize > FILE_SIZE_LIMIT) {
+            return res.status(400).json({
+                success: false,
+                message: 'File size exceeds the limit',
+            });
+        }
+
+        // Fetch the file from the provided URL
+        const response = await axios.get(url, { responseType: 'arraybuffer' });
+        if (response.status !== 200) {
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to fetch file from URL',
+            });
+        }
+
+        // Generate the presigned URL for uploading
+        const uploadUrl = await generatePresignedUrl(fileName, contentType);
+
+        // Upload the file to S3
+        const uploadResponse = await axios.put(uploadUrl, response.data, {
+            headers: { 'Content-Type': contentType },
+        });
+        if (uploadResponse.status !== 200) {
+            return res.status(500).json({
+                success: false,
+                message: 'Failed to upload file to S3',
+            });
+        }
+
+        // Generate the public URL for accessing the uploaded file
+        const publicUrl = getPublicUrl(fileName);
+
+        return res.status(201).json({
+            success: true,
+            publicUrl,
+        });
+
+    } catch (error) {
+        console.error('Error processing request:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Internal server error',
+        });
+    }
+});
+
+export default router;
+
+
